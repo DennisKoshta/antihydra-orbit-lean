@@ -1,0 +1,19 @@
+name = "AntihydraOrbit"
+version = "0.1.0"
+keywords = ["math", "busy-beaver"]
+defaultTargets = ["AntihydraOrbit"]
+
+# The elaboration options of the `Cryptids` package, whose `BusyBeaver` library this package builds on.
+[leanOptions]
+pp.unicode.fun = true
+relaxedAutoImplicit = false
+maxSynthPendingDepth = 3
+
+# Mathlib comes with it, at the version this commit pins.
+[[require]]
+name = "Cryptids"
+git = "https://github.com/google-deepmind/cryptids"
+rev = "1f9ffee29e707e4d21d19168748c7660a87c608b"
+
+[[lean_lib]]
+name = "AntihydraOrbit"
