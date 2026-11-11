@@ -21,9 +21,10 @@ This package proves three things in Lean 4 with Mathlib.
 It does **not** prove that Antihydra never halts. The third result is about the family of all
 start values and says nothing about the start value 8.
 
-The package has a second part, about three other open machines of BB(6). For each one it proves an
-exact criterion: the machine halts if and only if a certain weighted sum becomes a power of two.
-That says when each machine halts, not whether it does. See "Three related machines" below.
+The package has a second part, about four other open machines of BB(6). For each one it proves an
+exact criterion: the machine halts if and only if a certain number computed from its stack becomes
+a power of two. That says when each machine halts, not whether it does. See "Four related
+machines" below.
 
 Every theorem is checked by the Lean kernel and depends only on the three standard axioms.
 
@@ -153,16 +154,17 @@ What it does not show:
 - Not that the density exists. A start value can stop after more than `log₂ x` steps, and there
   the count gives no control.
 
-## Three related machines
+## Four related machines
 
-The folder `AntihydraOrbit/Cousins` is about three other machines on the list of BB(6) holdouts.
+The folder `AntihydraOrbit/Cousins` is about four other machines on the list of BB(6) holdouts.
 Nobody knows whether they halt either.
 
 | file | machine | name in `cryptids` |
 |---|---|---|
 | `Line359.lean` | `1RB1LA_1LA0RC_1RD1RC_1LE0RC_---0LF_1LE0LA` | Problem S2 |
-| `Line116.lean` | `1RB0RB_1RC0LE_1LD1LA_---0LC_1RF1LE_1RA0RA` | Problem S3 |
+| `Line116.lean`, `Line116Map.lean` | `1RB0RB_1RC0LE_1LD1LA_---0LC_1RF1LE_1RA0RA` | Problem S3 |
 | `Line505.lean` | `1RB1LA_1RC0RF_1RD---_0LE1RB_---0LA_1LD1RF` | Problem S5 |
+| `Line439.lean` | `1RB0LC_1LC0RE_1LD1LC_1LA1RD_---0RF_0LB0RD` | S4 sibling |
 
 The numbers in the file names are the machines' line numbers in a list of 740 holdouts from
 October 2026 that we worked from. The machine strings are what identifies the machines.
@@ -171,15 +173,19 @@ Each machine keeps a stack of numbers on its tape and sweeps over it again and a
 `BusyBeaver` library proves for each of them that the machine halts if and only if a map on such
 stacks halts. The files here build on those proofs, as the Antihydra part does.
 
-The result has the same form for all three. At the start of a sweep, take the sum of the stack
+For S2, S3 and S5 the result has the same form. At the start of a sweep, take the sum of the stack
 entries weighted by powers of two. The machine halts in that sweep if and only if the sum is a
 power of two. The number of times 2 divides the same sum says how deep the sweep goes.
 
+For the S4 sibling the condition is on a single number. At certain points of its orbit one of its
+two stacks is down to a single entry `x`. From such a point the machine halts before its next sweep
+if and only if `x + 2` is a power of two.
+
 ### What the criteria show
 
-- They show exactly when each machine halts: when its orbit reaches a stack whose sum is a power
-  of two.
-- They do not show whether that ever happens. All three machines remain open.
+- They show exactly when each machine halts: when its orbit reaches a stack whose sum (for the S4
+  sibling, a single entry plus 2) is a power of two.
+- They do not show whether that ever happens. All four machines remain open.
 - A halt would be a finite event, and a run that finds one can be checked by anyone. To show that a
   machine never halts, one would have to prove that no sum along its orbit is a power of two.
 
@@ -258,6 +264,73 @@ rest `u` with odd entries, and `v` for the number of times 2 divides `W u`.
 The theorem `allOdd_of_bottomReach` shows that every stack at a bottom reach of the orbit has only
 odd entries. The sweep theorems assume that.
 
+### Problem S3, one cycle at a time (`Line116Map.lean`)
+
+`Line116.lean` describes each part of a sweep on its own. `Line116Map.lean` puts the parts together
+into one map `botStep` on stacks. It takes the stack at one bottom reach to the stack at the next
+bottom reach, or returns `none` when the machine halts in between.
+
+```lean
+def botStep (L : List ℕ) : Option (List ℕ) := botGo true 1 L
+
+def botSteps (L : List ℕ) : ℕ := 6 + botGoSteps true 1 L
+
+theorem botStep_reaches (L L' : List ℕ) (hL : AllOdd L) (h : botStep L = some L') :
+    (Option.bind · highLevelNext)^[botSteps L] (some (.F 0 2 L 1 [])) =
+        some (.F 0 2 L' 1 []) ∧
+      AllOdd L'
+
+theorem botStep_eq_none_iff (L : List ℕ) (hL : AllOdd L) :
+    botStep L = none ↔ ∃ p, paddedW L = 2 ^ p
+
+theorem isHalt_iff_botStep : IsHalt target ↔ CollatzHalts botStep [5, 5, 1]
+```
+
+One cycle passes a carry down the stack. Write the stack as `L = [u_0, u_1, ...]`, all entries
+odd, and start with the carry `p_0 = 1`. At level `j` the cycle looks at
+
+```
+B_j = u_j + p_j
+```
+
+If `B_j` is even and there is another entry, the carry for the next level is `p_(j+1) = B_j / 2`.
+The cycle ends at level `d`: the first level where `B_d` is odd, or the last level if all are
+even. In the second case put `V = B_d + 2 = 2^ν q` with `q` odd. The new stack is:
+
+| case | new stack |
+|---|---|
+| `B_0` is odd | `[B_0 + 2, u_1 + 2, u_2, ...]` |
+| `B_d` is odd, `d ≥ 1` | `[p_1, ..., p_(d-1), p_d - 1, B_d + 2, u_(d+1) + 2, u_(d+2), ...]` |
+| all even, `q ≥ 3` | `[p_1, ..., p_d, 2^(ν-1) q - 1, ..., 2 q - 1, q - 2, q, 1]` |
+| all even, `q = 1` | none: the machine halts |
+
+Two details of the table:
+
+- If the odd `B_d` is at the last entry, a new entry `1` takes the place of `u_(d+1) + 2`.
+- In the third row, the entries from `2^(ν-1) q - 1` down to `2 q - 1` are absent when `ν = 1`.
+
+When the cycle does not halt, the number of steps of `highLevelNext` in it is
+
+```
+botSteps L = 6 + p_1 + ... + p_d                (first and second row)
+botSteps L = 6 + p_1 + ... + p_d + V - q - ν    (third row)
+```
+
+For example, the first bottom reach has the stack `[5, 5, 1]`:
+
+```
+B_0 = 5 + 1 = 6   ->  p_1 = 3
+B_1 = 5 + 3 = 8   ->  p_2 = 4
+B_2 = 1 + 4 = 5   is odd, so d = 2
+new stack [p_1, p_2 - 1, B_2 + 2, 1] = [3, 3, 7, 1], after 6 + 3 + 4 = 13 steps
+```
+
+Two more theorems tie the map to the machine's time:
+
+- `botStep_orbit`: the `n`-th stack of the orbit of `[5, 5, 1]` is the bottom reach at step
+  `botTime n` of `highLevelNext`. The first is at step 27, and each cycle adds its length.
+- `botStep_no_earlier`: no other bottom reach comes inside a cycle.
+
 ### Problem S5 (`Line505.lean`)
 
 For this machine the library proves that a reduction to a map on two stacks exists
@@ -297,6 +370,74 @@ divides `W L`. The theorem `isHalt_iff_oddTop_powerOfTwo` is the same criterion 
 removed, so that its rule lemmas can be used. The changes are listed at its top. The theorems above
 are about the library's original `target`, not about the copy.
 
+### S4 sibling (`Line439.lean`)
+
+The library groups this machine with the machines of Problem S4. As for S5, it proves that a
+reduction to a map on two stacks exists and keeps the rules private. `Line439.lean` writes them out
+as a map `next439` with seven cases and proves that it is a valid acceleration of `target`.
+
+A state is `D L R` or `AL L R`, with a left stack `L` and a right stack `R`:
+
+```lean
+def next439 : State439 → Option State439
+  | .D [] R => some (.AL [] (bumpHead R))
+  | .D (a :: L) R => some (.D L (a :: bumpHead R))
+  | .AL L [] => some (.D L.tail [tailWeight L + 2])
+  | .AL _ (0 :: _) => none
+  | .AL L (1 :: R) => some (.D ((tailWeight L + 2) :: L.tail) R)
+  | .AL L (2 :: R) => some (.AL (0 :: tailWeight L :: L.tail) (bumpHead R))
+  | .AL L ((d + 3) :: R) => some (.AL ((tailWeight L + 1) :: L.tail) ((d + 1) :: bumpHead R))
+
+theorem isHalt_iff_next439 : IsHalt target ↔ CollatzHalts next439 start439
+```
+
+Two helper functions appear in the rules:
+
+- `bumpHead` adds 1 to the first entry of a stack, and turns `[]` into `[0]`.
+- `tailWeight L` is the first entry of `L`, or 0 if `L` is empty.
+
+The start is `start439 = D [3] [0]`, which the machine reaches from the blank tape after 23 steps.
+In mode `D` the machine sweeps the left stack over to the right one.
+
+Call a state `AL L [x]`, with a single entry on the right, an exposure of value `x`. The file proves
+what follows an exposure, for every `L` and `x`:
+
+| theorem | case | what follows |
+|---|---|---|
+| `exposure_even_step` | `x ≥ 2` even | after `x / 2` steps, an exposure of value `x / 2 - 1` |
+| `exposure_odd_step` | `x` odd | after `(x + 1) / 2` steps, a `D` state |
+| `exposure_halt_of_powerOfTwo` | `x + 2 = 2^k` | a halt after `2^k - k` steps, with no `D` state before it |
+| `exposure_reaches_D_of_not_powerOfTwo` | `x + 2` is not a power of two | a `D` state after `exposureSteps x` steps |
+
+Since `(x / 2 - 1) + 2 = (x + 2) / 2`, each even exposure halves `x + 2`. If `x + 2` is a power of
+two, the halvings end at the value 0, and the machine halts. Otherwise they end at the odd part of
+`x + 2` minus 2, an odd value, and the machine goes back to mode `D`. So:
+
+```lean
+theorem exposure_halts_before_D_iff (L : List ℕ) (x : ℕ) :
+    (∃ T, (Option.bind · next439)^[T] (some (.AL L [x])) = none ∧
+        ∀ t < T, ∀ L' R',
+          (Option.bind · next439)^[t] (some (.AL L [x])) ≠ some (.D L' R')) ↔
+      (x = 0 ∨ ∃ k, 2 ≤ k ∧ x + 2 = 2 ^ k)
+```
+
+On the orbit there is no other way to halt. In mode `D` the two stacks are never both empty
+(`orbitInv_start439`, `orbitInv_step`). From this, `halt_after_exposure_two` shows that every halting
+state of the orbit comes one step after an exposure of value 2. Together:
+
+```lean
+theorem isHalt_iff_exposure_powerOfTwo :
+    IsHalt target ↔
+      ∃ t L x, (Option.bind · next439)^[t] (some start439) = some (.AL L [x]) ∧
+        ∃ k, 2 ≤ k ∧ x + 2 = 2 ^ k
+```
+
+In words: the machine halts if and only if its orbit reaches an exposure `AL L [x]` for which
+`x + 2` is a power of two (at least 4).
+
+`Line439Base.lean` is a copy of the library's file for this machine with the `private` keywords
+removed, as for S5. The theorems are about the library's original `target`.
+
 ## Earlier work
 
 None of the mathematics in the reduction is new. What this package adds is noted at the end.
@@ -320,12 +461,15 @@ None of the mathematics in the reduction is new. What this package adds is noted
   [BB(2, 5) is Hard (Hydra)](https://www.sligocki.com/2024/05/10/bb-2-5-is-hard.html). Note that
   `q = 1/φ`. The counting method is the one Terras used for the 3x+1 map.
 
-Earlier work on the three related machines:
+Earlier work on the four related machines:
 
 - **The reductions.** The stack maps and the proofs that the machines follow them are in the
-  `BusyBeaver` library (`BusyBeaver/BB6/Accelerations`). Its hardness table names the trigger of
-  the halt for each machine. For S2 and S5 that is a power-of-two condition at the bottom of the
-  stack. The table also gives near misses from simulations.
+  `BusyBeaver` library (`BusyBeaver/BB6/Accelerations`).
+- **The hardness table.** The same library names the trigger of the halt for each machine. For
+  S2, S5 and the S4 sibling that is a power-of-two condition at the bottom of the stack. The table
+  also gives near misses from simulations.
+- **S4 sibling.** For the machines of Problem S4 the hardness notes describe the exposures seen in
+  simulations as halvings down to an odd part, for example `1292 → 646 → 323`.
 - **Problem S3.** nerdyjoe described the machine as a rewriting system on a string of integers on
   the bbchallenge Discord on 3 December 2025 and conjectured that it does not halt.
 - **Problem S5, the wiki.** The machine's
@@ -342,9 +486,12 @@ What this package adds:
 - The two barriers.
 - The exact count of stopping start values and the density bound. We have not found these stated
   with a proof for this family. Pointers are welcome.
-- For the three related machines: one condition on the whole stack, a weighted sum being a power
-  of two, that is equivalent to halting, with the proof down to the machine. We have not found
-  these sums stated before. Pointers are welcome here too.
+- For S2, S3 and S5: one condition on the whole stack, a weighted sum being a power of two, that is
+  equivalent to halting, with the proof down to the machine. We have not found these sums stated
+  before. Pointers are welcome here too.
+- For S3, the whole cycle as one map on stacks, with the exact number of steps.
+- For the S4 sibling: the library's notes name the trigger; the package proves that it is the only
+  way the machine can halt, and that each exposure halts exactly when `x + 2` is a power of two.
 
 ## How to check it
 
@@ -356,9 +503,9 @@ lake build
 The first command fetches the dependencies and downloads the prebuilt Mathlib. Afterwards the
 project directory holds about 8 GB, most of it Mathlib.
 
-The second command builds the nine library files that are needed (eight of `BusyBeaver` and
-`Cryptids/Machines.lean`) and the files of this package. From a fresh clone it took a little over
-four minutes on our machine, with two threads.
+The second command builds the ten library files that are needed (nine of `BusyBeaver` and
+`Cryptids/Machines.lean`) and the files of this package. From a fresh clone it took about four and
+a half minutes on our machine, with two threads.
 
 The top level has two symbolic links, `artifacts` and `baselines`. They point into the fetched
 copy of the library. One of its files, `Cryptids/Machines.lean`, reads machine tables by paths
@@ -389,12 +536,12 @@ The build prints one line per theorem, for example
   process `step`, `StopsWithin`, `M`, `Z`, `wordStops`. For the count, also `stopCount` and `q` at
   the top of `AntihydraOrbit/Density.lean`.
 
-- For the three related machines: the definitions at the top of each file, under the heading
-  "Definitions (the trusted base)". The criterion for Problem S3 is stated with the library's own
-  `highLevelNext` and `highLevelStart`.
+- For the four related machines: the definitions at the top of each file, under the heading
+  "Definitions (the trusted base)". The criterion of `Line116.lean` is stated with the library's
+  own `highLevelNext` and `highLevelStart`.
 
 The definitions and the statements were written before the proofs. The definitions were compared
-with a direct computation of the orbit, and the statements about the three related machines with
+with a direct computation of the orbit, and the statements about the four related machines with
 direct computations on their rules.
 
 ## Files
@@ -411,9 +558,12 @@ direct computations on their rules.
 | `AntihydraOrbit/DensityAudit.lean` | `#print axioms` for the 11 theorems of `Density.lean` |
 | `AntihydraOrbit/Cousins/Line359.lean` | Problem S2: the map `U`, the padded sum, the halting criterion |
 | `AntihydraOrbit/Cousins/Line116.lean` | Problem S3: the sweep and chain laws, the halting criterion |
+| `AntihydraOrbit/Cousins/Line116Map.lean` | Problem S3: one cycle as the map `botStep` on stacks, with exact times |
 | `AntihydraOrbit/Cousins/Line505Base.lean` | Problem S5: the library's file for the machine, with its rule lemmas made public |
 | `AntihydraOrbit/Cousins/Line505.lean` | Problem S5: the explicit map `next505`, the sum law, the halting criterion |
-| `AntihydraOrbit/Cousins/Line359Audit.lean`, `Line116Audit.lean`, `Line505Audit.lean` | `#print axioms` for the 17, 16 and 20 theorems of the three files |
+| `AntihydraOrbit/Cousins/Line439Base.lean` | S4 sibling: the library's file for the machine, with its rule lemmas made public |
+| `AntihydraOrbit/Cousins/Line439.lean` | S4 sibling: the explicit map `next439`, the exposure law, the halting criterion |
+| `AntihydraOrbit/Cousins/Line359Audit.lean`, `Line116Audit.lean`, `Line116MapAudit.lean`, `Line505Audit.lean`, `Line439Audit.lean` | `#print axioms` for the 17, 16, 5, 20 and 11 theorems of the five files |
 
 ## License
 
