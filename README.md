@@ -16,7 +16,8 @@ This package proves three things in Lean 4 with Mathlib.
 2. Several facts about that sequence, among them two reasons why simple arguments cannot settle
    the question.
 3. A count. If the same process is started at an arbitrary number instead of 8, at least 61.8% of
-   the start values stop.
+   the start values stop. This count was known on the bbchallenge Discord; the package proves it
+   in Lean, for every starting value of the counter.
 
 It does **not** prove that Antihydra never halts. The third result is about the family of all
 start values and says nothing about the start value 8.
@@ -701,6 +702,13 @@ None of the mathematics in the reduction is new. What this package adds is noted
 - **The heuristic.** The value `(1/φ)^(b+1)`, with `φ` the golden ratio, is in Ligocki's
   [BB(2, 5) is Hard (Hydra)](https://www.sligocki.com/2024/05/10/bb-2-5-is-hard.html). Note that
   `q = 1/φ`. The counting method is the one Terras used for the 3x+1 map.
+- **The count.** Both counts below were posted on the bbchallenge Discord.
+  - On 20 April 2024, k00 counted the start values that stop after exactly `3k + 1` steps (OEIS
+    A001764). This was for another Collatz-like map whose counter takes the same steps `+2` and
+    `−1`. k00 estimated that about 61.8% of the start values stop.
+  - On 31 May 2025, Sixshaman gave the count for Antihydra from counter 0, with an argument. The
+    stopping parity words are counted as ternary trees, and each stopping start value repeats
+    with period `2^n`. Summing the densities gives `φ − 1 = 0.618...`.
 
 Earlier work on the related machines:
 
@@ -716,8 +724,10 @@ Earlier work on the related machines:
   the bbchallenge Discord on 3 December 2025 and conjectured that it does not halt.
 - **Problem S5, the wiki.** The machine's
   [wiki page](https://wiki.bbchallenge.org/wiki/1RB1LA_1RC0RF_1RD---_0LE1RB_---0LA_1LD1RF)
-  gives macro rules, an era structure, and a list of invariants that failed. It notes that halting
-  depends on the whole configuration and not on any single field.
+  gives macro rules, an era structure, and a list of invariants that failed. It also notes two facts
+  about halting:
+  - with no run left of the cursor, the cursor values `3, 7, 15, 31, …` lead to a halt;
+  - in general, halting depends on the whole configuration and not on any single field.
 - **Problem S5, Lean.** The page links Lean proofs of its macro rules in
   [rwst/bbchallenge](https://github.com/rwst/bbchallenge/tree/main/1RB1LA_1RC0RF_1RD---_0LE1RB_---0LA_1LD1RF).
 - **Problem 2 and Cascade, the hardness table.** For Problem 2 the table gives the trigger as an
@@ -738,11 +748,12 @@ What this package adds:
 - The reduction is stated on the `BusyBeaver` library's own definitions of machine and halting, as
   a count over the plain orbit of 8.
 - The two barriers.
-- The exact count of stopping start values and the density bound. We have not found these stated
-  with a proof for this family. Pointers are welcome.
+- The count and the density bound as Lean theorems, for every starting counter `b`, with an
+  explicit error term. For counter 0 the value and a counting argument were known (see "The
+  count" above).
 - For S2, S3 and S5: one condition on the whole stack, a weighted sum being a power of two, that is
   equivalent to halting, with the proof down to the machine. We have not found these sums stated
-  before. Pointers are welcome here too.
+  before.
 - For S3, the whole cycle as one map on stacks, with the exact number of steps.
 - For Problem S4 and the S4 sibling: the library's notes name the trigger; the package proves that
   it is the only way these machines can halt, and that each exposure halts exactly when `x + 1`
